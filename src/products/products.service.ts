@@ -107,7 +107,20 @@ export class ProductsService {
   async remove(id: string): Promise<Product> {
     await this.ensureExists(id);
 
-    return this.prisma.product.delete({ where: { id } });
+    try {
+      return await this.prisma.product.delete({ where: { id } });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        throw new ConflictException(
+          'Product has sales and cannot be deleted',
+        );
+      }
+
+      throw error;
+    }
   }
 
   private async ensureExists(id: string) {
