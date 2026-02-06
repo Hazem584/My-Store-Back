@@ -38,4 +38,10 @@ export class CreateSaleByCodeDto {
   @IsNumber({ allowNaN: false, allowInfinity: false })
   @Min(0)
   cardAmount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @Min(0)
+  discountAmount?: number;
 }

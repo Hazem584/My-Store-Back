@@ -6,6 +6,7 @@ export type PaymentInput = {
   paidAmount?: number;
   cashAmount?: number;
   cardAmount?: number;
+  discountAmount?: number;
 };
 
 export type PaymentResult = {

@@ -83,6 +83,8 @@ export function buildReceipt(
   });
 
   const subtotal = round2(items.reduce((acc, item) => acc + item.lineTotal, 0));
+  const discount = round2(toNumber(sale.discountAmount));
+  const tax = round2(toNumber(sale.taxAmount));
   const total = round2(toNumber(sale.totalAmount));
   const totalQty = sale.items.reduce((acc, item) => acc + item.quantity, 0);
   const distinctItems = sale.items.length;
@@ -135,8 +137,8 @@ export function buildReceipt(
     },
     totals: {
       subtotal,
-      discount: 0,
-      tax: 0,
+      discount,
+      tax,
       total,
     },
     payment,

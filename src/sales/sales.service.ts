@@ -223,7 +223,7 @@ export class SalesService {
         }
       }
 
-      let totalAmount = new Prisma.Decimal(0);
+      let subtotalAmount = new Prisma.Decimal(0);
       const itemsData: Prisma.SaleItemCreateWithoutSaleInput[] = items.map(
         (item) => {
           const product = productMap.get(item.productId);
@@ -236,7 +236,7 @@ export class SalesService {
             : product.price;
           const lineTotal = unitPrice.mul(item.quantity);
 
-          totalAmount = totalAmount.add(lineTotal);
+          subtotalAmount = subtotalAmount.add(lineTotal);
 
           return {
             product: { connect: { id: product.id } },
@@ -246,6 +246,19 @@ export class SalesService {
           };
         },
       );
+
+      const discountAmount = new Prisma.Decimal(
+        paymentInput.discountAmount ?? 0,
+      );
+      if (discountAmount.isNegative()) {
+        throw new BadRequestException('discountAmount must be >= 0.');
+      }
+      if (discountAmount.gt(subtotalAmount)) {
+        throw new BadRequestException('discountAmount must be <= subtotal.');
+      }
+
+      const taxAmount = new Prisma.Decimal(0);
+      const totalAmount = subtotalAmount.minus(discountAmount).plus(taxAmount);
 
       const payment = validateAndBuildPayment(paymentInput, totalAmount);
       const receiptNoInt = await getNextReceiptNumber(tx);
@@ -260,6 +273,8 @@ export class SalesService {
           cashAmount: payment.cashAmount,
           cardAmount: payment.cardAmount,
           changeAmount: payment.changeAmount,
+          discountAmount,
+          taxAmount,
           items: { create: itemsData },
         },
         include: {
