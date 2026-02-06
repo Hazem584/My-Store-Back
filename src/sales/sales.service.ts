@@ -8,13 +8,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateSaleByCodeDto } from './dto/create-sale-by-code.dto';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { CreateSaleItemDto } from './dto/create-sale-item.dto';
+import type { PaymentInput } from './payment.validator';
+import { validateAndBuildPayment } from './payment.validator';
+import { getNextReceiptNumber } from './receipt-counter';
+import { buildReceipt, getStoreConfigFromEnv } from './receipt.builder';
 
 @Injectable()
 export class SalesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: string, dto: CreateSaleDto) {
-    return this.createSale(userId, dto.items);
+    return this.createSale(userId, dto.items, dto);
   }
 
   async createByCode(userId: string, dto: CreateSaleByCodeDto) {
@@ -37,7 +41,7 @@ export class SalesService {
       },
     ];
 
-    return this.createSale(userId, items);
+    return this.createSale(userId, items, dto);
   }
 
   async today() {
@@ -97,7 +101,13 @@ export class SalesService {
     };
   }
 
-  private async createSale(userId: string, items: CreateSaleItemDto[]) {
+  private async createSale(
+    userId: string,
+    items: CreateSaleItemDto[],
+    paymentInput: PaymentInput,
+  ) {
+    const storeConfig = getStoreConfigFromEnv();
+
     return this.prisma.$transaction(async (tx) => {
       const productIds = [...new Set(items.map((item) => item.productId))];
 
@@ -168,10 +178,19 @@ export class SalesService {
         },
       );
 
+      const payment = validateAndBuildPayment(paymentInput, totalAmount);
+      const receiptNoInt = await getNextReceiptNumber(tx);
+
       const sale = await tx.sale.create({
         data: {
           user: { connect: { id: userId } },
           totalAmount,
+          receiptNoInt,
+          paymentMethod: payment.paymentMethod,
+          paidAmount: payment.paidAmount,
+          cashAmount: payment.cashAmount,
+          cardAmount: payment.cardAmount,
+          changeAmount: payment.changeAmount,
           items: { create: itemsData },
         },
         include: {
@@ -197,7 +216,9 @@ export class SalesService {
         },
       });
 
-      return sale;
+      const receipt = buildReceipt(sale, storeConfig);
+
+      return { sale, receipt };
     });
   }
 }
