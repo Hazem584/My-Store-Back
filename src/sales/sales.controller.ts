@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -30,5 +30,17 @@ export class SalesController {
   @Roles(Role.OWNER, Role.CASHIER)
   today() {
     return this.salesService.today();
+  }
+
+  @Get(':id/receipt')
+  @Roles(Role.OWNER, Role.CASHIER)
+  getReceipt(@Param('id') id: string) {
+    return this.salesService.getReceipt(id);
+  }
+
+  @Get(':id')
+  @Roles(Role.OWNER, Role.CASHIER)
+  findOne(@Param('id') id: string) {
+    return this.salesService.findOne(id);
   }
 }

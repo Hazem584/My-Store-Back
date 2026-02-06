@@ -101,6 +101,75 @@ export class SalesService {
     };
   }
 
+  async findOne(id: string) {
+    const sale = await this.prisma.sale.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+              },
+            },
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!sale) {
+      throw new NotFoundException('Sale not found');
+    }
+
+    return sale;
+  }
+
+  async getReceipt(id: string) {
+    const sale = await this.prisma.sale.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+              },
+            },
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!sale) {
+      throw new NotFoundException('Sale not found');
+    }
+
+    const storeConfig = getStoreConfigFromEnv();
+    const receipt = buildReceipt(sale, storeConfig);
+
+    return receipt;
+  }
+
   private async createSale(
     userId: string,
     items: CreateSaleItemDto[],
