@@ -16,8 +16,6 @@ ALTER TABLE "Sale" ADD COLUMN "paidAmount" DECIMAL(12,2);
 ALTER TABLE "Sale" ADD COLUMN "cashAmount" DECIMAL(12,2);
 ALTER TABLE "Sale" ADD COLUMN "cardAmount" DECIMAL(12,2);
 ALTER TABLE "Sale" ADD COLUMN "changeAmount" DECIMAL(12,2);
-ALTER TABLE "Sale" ADD COLUMN "discountAmount" DECIMAL(12,2) NOT NULL DEFAULT 0;
-ALTER TABLE "Sale" ADD COLUMN "taxAmount" DECIMAL(12,2) NOT NULL DEFAULT 0;
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Sale_receiptNoInt_key" ON "Sale"("receiptNoInt");
