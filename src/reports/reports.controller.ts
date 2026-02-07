@@ -20,4 +20,9 @@ export class ReportsController {
   monthly(@Query('month') month?: string) {
     return this.reportsService.getMonthlyReport(month);
   }
+
+  @Get('monthly-with-time')
+  monthlyWithTime(@Query('month') month?: string) {
+    return this.reportsService.getMonthlyReportWithSales(month);
+  }
 }

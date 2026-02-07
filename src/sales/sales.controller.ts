@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -42,5 +42,11 @@ export class SalesController {
   @Roles(Role.OWNER, Role.CASHIER)
   findOne(@Param('id') id: string) {
     return this.salesService.findOne(id);
+  }
+
+  @Delete(':id')
+  @Roles(Role.OWNER)
+  remove(@Param('id') id: string) {
+    return this.salesService.remove(id);
   }
 }

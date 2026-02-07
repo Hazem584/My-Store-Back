@@ -33,7 +33,9 @@ export class ReportsService {
           select: { id: true, name: true },
         })
       : [];
-    const productMap = new Map(products.map((product) => [product.id, product.name]));
+    const productMap = new Map(
+      products.map((product) => [product.id, product.name]),
+    );
 
     const topProducts = topProductAgg
       .map((item) => ({
@@ -98,6 +100,82 @@ export class ReportsService {
       dailyBreakdown,
     };
   }
+
+  async getMonthlyReportWithSales(monthInput?: string) {
+    const { start, end, label } = parseMonthRange(monthInput);
+
+    const [salesAgg, itemsAgg, sales] = await Promise.all([
+      this.prisma.sale.aggregate({
+        where: { createdAt: { gte: start, lte: end } },
+        _sum: { totalAmount: true },
+        _count: { _all: true },
+      }),
+      this.prisma.saleItem.aggregate({
+        where: { sale: { createdAt: { gte: start, lte: end } } },
+        _sum: { quantity: true },
+      }),
+      this.prisma.sale.findMany({
+        where: { createdAt: { gte: start, lte: end } },
+        include: {
+          items: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  code: true,
+                },
+              },
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              role: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+
+    const dailyMap = new Map<
+      string,
+      { amount: number; orders: number; sales: typeof sales }
+    >();
+
+    for (const sale of sales) {
+      const dateKey = formatDate(sale.createdAt);
+      const entry = dailyMap.get(dateKey) ?? {
+        amount: 0,
+        orders: 0,
+        sales: [],
+      };
+      entry.amount += toNumber(sale.totalAmount);
+      entry.orders += 1;
+      entry.sales.push(sale);
+      dailyMap.set(dateKey, entry);
+    }
+
+    const dailyBreakdown = Array.from(dailyMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, value]) => ({
+        date,
+        amount: value.amount,
+        orders: value.orders,
+        sales: value.sales,
+      }));
+
+    return {
+      month: label,
+      totalSalesAmount: toNumber(salesAgg._sum.totalAmount),
+      totalOrders: salesAgg._count._all,
+      totalItemsSold: toNumber(itemsAgg._sum.quantity),
+      dailyBreakdown,
+    };
+  }
 }
 
 function parseDateRange(dateInput?: string) {
@@ -122,8 +200,24 @@ function parseDateRange(dateInput?: string) {
   }
 
   const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const start = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    0,
+    0,
+    0,
+    0,
+  );
+  const end = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    23,
+    59,
+    59,
+    999,
+  );
 
   return { start, end, label: formatDate(now) };
 }
