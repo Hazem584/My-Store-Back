@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { PaymentMethod, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSaleByCodeDto } from './dto/create-sale-by-code.dto';
 import { CreateSaleDto } from './dto/create-sale.dto';
@@ -302,9 +302,7 @@ export class SalesService {
         },
       );
 
-      const discountAmount = new Prisma.Decimal(
-        paymentInput.discountAmount ?? 0,
-      );
+      let discountAmount = new Prisma.Decimal(paymentInput.discountAmount ?? 0);
       if (discountAmount.isNegative()) {
         throw new BadRequestException('discountAmount must be >= 0.');
       }
@@ -313,7 +311,20 @@ export class SalesService {
       }
 
       const taxAmount = new Prisma.Decimal(0);
-      const totalAmount = subtotalAmount.minus(discountAmount).plus(taxAmount);
+      let totalAmount = subtotalAmount.minus(discountAmount).plus(taxAmount);
+
+      const paidForDiscount = resolvePaidAmountForDiscount(
+        paymentInput,
+        totalAmount,
+      );
+      if (paidForDiscount && paidForDiscount.lt(totalAmount)) {
+        const extraDiscount = totalAmount.minus(paidForDiscount);
+        discountAmount = discountAmount.plus(extraDiscount);
+        if (discountAmount.gt(subtotalAmount)) {
+          throw new BadRequestException('discountAmount must be <= subtotal.');
+        }
+        totalAmount = subtotalAmount.minus(discountAmount).plus(taxAmount);
+      }
 
       const payment = validateAndBuildPayment(paymentInput, totalAmount);
       const receiptNoInt = await getNextReceiptNumber(tx);
@@ -360,4 +371,52 @@ export class SalesService {
       return { sale, receipt };
     });
   }
+}
+
+function resolvePaidAmountForDiscount(
+  input: PaymentInput,
+  totalAmount: Prisma.Decimal,
+) {
+  const method = input.paymentMethod;
+  if (!method) {
+    return null;
+  }
+
+  if (method === PaymentMethod.CASH) {
+    if (input.paidAmount === undefined) {
+      return null;
+    }
+    return toDecimalStrict(input.paidAmount, 'paidAmount');
+  }
+
+  if (method === PaymentMethod.CARD) {
+    if (input.paidAmount === undefined) {
+      return totalAmount;
+    }
+    return toDecimalStrict(input.paidAmount, 'paidAmount');
+  }
+
+  if (method === PaymentMethod.MIXED) {
+    if (input.cashAmount === undefined || input.cardAmount === undefined) {
+      return null;
+    }
+    const cash = toDecimalStrict(input.cashAmount, 'cashAmount');
+    const card = toDecimalStrict(input.cardAmount, 'cardAmount');
+    return cash.plus(card);
+  }
+
+  return null;
+}
+
+function toDecimalStrict(value: number, field: string) {
+  if (!Number.isFinite(value)) {
+    throw new BadRequestException(`${field} must be a finite number.`);
+  }
+
+  const decimalValue = new Prisma.Decimal(value);
+  if (decimalValue.isNegative()) {
+    throw new BadRequestException(`${field} must be >= 0.`);
+  }
+
+  return decimalValue;
 }
